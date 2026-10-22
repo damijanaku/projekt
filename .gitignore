@@ -1,0 +1,41 @@
+# Odvisnosti
+node_modules/
+.pnp.*
+.npm/
+.pnpm-store/
+.yarn/cache/
+
+# Okoljske spremenljivke in skrivnosti
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Izhodne in začasne datoteke
+dist/
+build/
+coverage/
+.nyc_output/
+.cache/
+.parcel-cache/
+.vite/
+.turbo/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Lokalna podatkovna baza, izvozi in naložene datoteke
+*.dump
+*.sql.gz
+uploads/
+storage/
+
+# Urejevalniki in operacijski sistemi
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json

@@ -11,7 +11,7 @@ CREATE TABLE "user" (
     is_active BOOLEAN NOT NULL DEFAULT true,
     activation_token VARCHAR(255) UNIQUE,
     activation_expires_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_user_email ON "user"(email);

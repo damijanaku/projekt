@@ -1,4 +1,4 @@
-import background from "@/assets/thea.jpeg";
+import background from "@/assets/designs.jpg";
 import { RegisterForm } from "@/components/register-form";
 
 const Register = () => {

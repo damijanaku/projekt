@@ -30,7 +30,7 @@ export function LoginForm({
     try {
       setIsPending(true)
       await login(email, password)
-      navigate("/", { replace: true })
+      navigate("/dashboard", { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong")
     } finally {

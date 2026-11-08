@@ -1,11 +1,15 @@
 import * as React from "react"
 import { apiFetch } from "@/lib/api"
 
+export type UserRole = "customer" | "salon_manager" | "nail_artist"
+
+
 export interface AuthUser {
   id: number
   email: string
   first_name: string
-  last_name: string
+  last_name: string,
+  role: UserRole
 }
 
 export interface RegisterPayload {

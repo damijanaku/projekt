@@ -26,8 +26,7 @@ const sendArtistInvitation = async (senderEmail, recipientEmail, firstName, toke
     from: senderEmail,
     to: recipientEmail,
     subject: 'Complete registration as a Nail Artist',
-    text: `Hi ${firstName},\n\nYou have been invited to join a salon on NailBabe. Use this invitation token to finish setting up your account:\n\n${token}\n\nThe token expires in 24 hours.`
-  };
+    text: `Hi ${firstName},\n\nYou have been invited to join a salon on NailBabe. Open this link to finish setting up your account:\n\nhttp://localhost:5173/accept-invitation?token=${token}\n\nThe link expires in 24 hours.`  };
 
   return transporter.sendMail(mailOptions);
 };
@@ -135,7 +134,7 @@ export const login = async function (req, res) {
   
     try {
       const result = await req.db.query(
-        `SELECT id, email, password_hash, first_name, last_name, is_active
+        `SELECT id, email, password_hash, first_name, last_name, is_active, role
            FROM "user"
           WHERE email = $1`,
         [email]
@@ -186,6 +185,7 @@ export const login = async function (req, res) {
           email: user.email,
           first_name: user.first_name,
           last_name: user.last_name,
+          role: user.role
         },
         accessToken, 
       });
@@ -205,7 +205,7 @@ export const refresh = async function (req, res) {
     const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
 
     const result = await req.db.query(
-      `SELECT id, email, refresh_token_hash
+      `SELECT id, email, refresh_token_hash, role
          FROM "user"
         WHERE id = $1`,
       [decoded.id]
@@ -253,6 +253,7 @@ export const refresh = async function (req, res) {
         email: user.email,
         first_name: user.first_name,
         last_name: user.last_name,
+        role: user.role
       },
       accessToken: newAccessToken,
     });

@@ -1,5 +1,5 @@
 import { LoginForm } from "@/components/login-form";
-import background from "@/assets/thea.jpeg";
+import background from "@/assets/designs.jpg";
 
 const Login = () => {
   return (

@@ -20,3 +20,32 @@ export async function apiFetch<T>(
   }
   return data as T
 }
+
+export interface InviteArtistPayload {
+  email: string
+  first_name: string
+  last_name: string
+}
+
+export interface AcceptInvitationPayload {
+  token: string
+  password: string
+  display_name: string
+  bio?: string
+  experience_years?: number
+  specialty?: string
+}
+
+export function inviteNailArtist(payload: InviteArtistPayload, accessToken: string) {
+  return apiFetch<{ message: string; email: string; expires_at: string }>(
+    "/users/invite-nail-artist",
+    { method: "POST", body: JSON.stringify(payload), accessToken }
+  )
+}
+
+export function acceptInvitation(payload: AcceptInvitationPayload) {
+  return apiFetch<{ message: string }>("/users/accept-invitation", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
+}

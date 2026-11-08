@@ -282,56 +282,7 @@ export const logout = async function (req, res) {
     return res.status(200).json({ message: 'Logged out' });
 };
 
-export const createSalon = async function (req, res) {
-  const {
-    name, description, region, address, city, postal_code,
-    phone, email, instagram
-  } = req.body;
 
-  const userId = req.user?.id;
-
-  if (!userId) {
-    return res.status(401).json({ message: 'Unauthorized' });
-  }
-
-  if (!name || !description || !region || !address || !city ||
-      !postal_code || !phone || !email || !instagram) {
-    return res.status(400).json({ message: 'Missing required fields' });
-  }
-
-  try {
-    const manager = await req.db.query(
-      `SELECT id FROM salon_manager WHERE user_id = $1`,
-      [userId]
-    );
-
-    if (!manager.rows.length) {
-      return res.status(403).json({ message: 'Only salon managers can create a salon' });
-    }
-
-    const result = await req.db.query(
-      `INSERT INTO salon
-         (manager_id, name, description, region, address, city, postal_code, phone, email, instagram)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, name, description, region, address, city, postal_code, phone, email, instagram`,
-      [
-        manager.rows[0].id, name, description, region, address, city,
-        postal_code, phone, email, instagram
-      ]
-    );
-
-    return res.status(201).json({
-      message: 'Salon added successfully',
-      salon: result.rows[0],
-    });
-  } catch (error) {
-    if (error.code === '23505') {
-      return res.status(409).json({ message: 'Salon with these details already exists' });
-    }
-    console.error('addSalon error:', error);
-    return res.status(500).json({ message: 'Internal server error' });
-  }
-};
 
 export const inviteNailArtist = async function (req, res) {
 

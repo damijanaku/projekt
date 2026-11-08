@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import userRoutes from './src/routes/user.routes.js';
+import salonRoutes from './src/routes/salon.routes.js'
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { connectDB, query, pool } from './src/config/db.js'
@@ -28,6 +29,7 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/api/v1/users', userRoutes)
+app.use('/api/v1/salons', salonRoutes)
 
 async function start() {
   await connectDB();  

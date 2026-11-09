@@ -10,6 +10,37 @@ import { useAuth } from "../../context/AuthContext"
 import { Button } from "../../components/ui/button"
 import { apiFetch, getMySalon, type SalonCategory, type SalonSummary } from "../../lib/api"
 
+const API_BASE = import.meta.env.VITE_IMAGE_UPLOAD_URL || "http://localhost:3000"
+
+let allSalonsCache: SalonSummary[] | null = null
+let allSalonsPromise: Promise<SalonSummary[]> | null = null
+
+async function fetchAllSalons(accessToken: string): Promise<SalonSummary[]> {
+  if (allSalonsCache) return allSalonsCache
+  if (allSalonsPromise) return allSalonsPromise
+
+  allSalonsPromise = apiFetch<{ salons: SalonSummary[] }>("/salons/all", {
+    method: "GET",
+    accessToken,
+  })
+    .then((data) => {
+      allSalonsCache = data.salons
+      return data.salons
+    })
+    .finally(() => {
+      allSalonsPromise = null 
+    })
+
+  return allSalonsPromise
+}
+
+function resolveImageUrl(url?: string | null) {
+  if (!url) return null
+  if (/^https?:\/\//i.test(url)) return url
+  if (url.startsWith("data:")) return url
+  return `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`
+}
+
 export default function Dashboard() {
   const { user, accessToken } = useAuth()
   const [salon, setSalon] = React.useState<SalonSummary | null>(null)
@@ -27,6 +58,12 @@ export default function Dashboard() {
   const [categories, setCategories] = React.useState<SalonCategory[]>([])
   const [categoryError, setCategoryError] = React.useState<string | null>(null)
 
+  // all-salons state
+  const [allSalons, setAllSalons] = React.useState<SalonSummary[]>(() => allSalonsCache ?? [])
+  const [allSalonsLoading, setAllSalonsLoading] = React.useState(false)
+  const [allSalonsError, setAllSalonsError] = React.useState<string | null>(null)
+
+  // manager: own salon
   React.useEffect(() => {
     if (user?.role !== "salon_manager" || !accessToken) {
       setSalonChecked(true)
@@ -52,6 +89,7 @@ export default function Dashboard() {
     }
   }, [user?.role, accessToken])
 
+  // customer: categories
   React.useEffect(() => {
     if (!accessToken || user?.role !== "customer") return
 
@@ -73,6 +111,43 @@ export default function Dashboard() {
       cancelled = true
     }
   }, [user?.role, accessToken])
+
+  // is any search actually active?
+  const hasActiveSearch =
+    hasSearched ||
+    searchParams.name.trim() !== "" ||
+    searchParams.category.trim() !== "" ||
+    searchParams.region.trim() !== ""
+
+  React.useEffect(() => {
+    if (user?.role !== "customer" || !accessToken) return
+    if (hasActiveSearch) return
+    if (allSalonsCache) {
+      if (allSalons.length !== allSalonsCache.length) setAllSalons(allSalonsCache)
+      return
+    }
+
+    let cancelled = false
+    setAllSalonsLoading(true)
+    setAllSalonsError(null)
+
+    fetchAllSalons(accessToken)
+      .then((salons) => {
+        if (!cancelled) setAllSalons(salons)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setAllSalonsError(error instanceof Error ? error.message : "Could not load salons")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setAllSalonsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.role, accessToken, hasActiveSearch])
 
   const searchSalonUrl = async () => {
     if (!accessToken) return
@@ -105,6 +180,8 @@ export default function Dashboard() {
     }
   }
 
+  // list to shows
+  const displaySalons = hasSearched && !searchError ? salonResults : allSalons
 
   return (
     <SidebarProvider>
@@ -114,6 +191,7 @@ export default function Dashboard() {
           <SidebarTrigger />
           <h1 className="text-lg font-semibold">NailBabe</h1>
         </header>
+
         <div className="space-y-4 p-6">
           {user?.role === "salon_manager" && !salonChecked && (
             <p className="text-sm text-muted-foreground">Checking your salon…</p>
@@ -129,69 +207,99 @@ export default function Dashboard() {
               Create your salon
             </Button>
           )}
-        </div>
 
-        {user?.role === "customer" && (
-          <div className="flex h-full flex-col mx-4 items-start gap-4 text-center text-muted-foreground">
-            <text className="font-semibold text-lg text-black">
-              Poiščite svoj salon
-            </text>
+          {user?.role === "customer" && (
+            <div className="flex h-full flex-col items-start gap-4 text-center text-muted-foreground">
+              <h2 className="font-semibold text-lg text-black">Poiščite svoj salon</h2>
 
-            <div className="flex w-full flex-wrap items-center justify-between gap-4 rounded-lg bg-[#EBAFE2]/40 p-4">
-              <label className="flex shrink-0 items-center gap-4 text-sm text-black">
-                <span className="whitespace-nowrap">Naziv salona:</span>
-                <input
-                  value={searchParams.name}
-                  onChange={(e) => setSearchParams({ ...searchParams, name: e.target.value })}
-                  className="h-10 w-40 rounded-lg border border-input bg-background px-3 text-sm"
-                  placeholder="Vnesite naziv"
-                />
-              </label>
-              <label className="flex shrink-0 items-center gap-4 text-sm text-black">
-                <span className="whitespace-nowrap">Kategorija salona</span>
-                <select
-                  value={searchParams.category}
-                  onChange={(e) => setSearchParams({ ...searchParams, category: e.target.value })}
-                  className="h-10 w-48 rounded-lg border border-input bg-background px-3 text-sm"
-                >
-                  <option value="">Vse kategorije</option>
-                  {categories.map((category) => (
-                    <option key={category.id} value={category.id}>{category.name}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex shrink-0 items-center gap-4 text-sm text-black">
-                <span className="whitespace-nowrap">Regija salona:</span>
-                <input
-                  value={searchParams.region}
-                  onChange={(e) => setSearchParams({ ...searchParams, region: e.target.value })}
-                  className="h-10 w-40 rounded-lg border border-input bg-background px-3 text-sm"
-                  placeholder="Vnesite regijo"
-                />
-              </label>
+              <div className="flex w-full flex-wrap items-center justify-between gap-4 rounded-lg bg-[#EBAFE2]/40 p-4">
+                <label className="flex shrink-0 items-center gap-4 text-sm text-black">
+                  <span className="whitespace-nowrap">Naziv salona:</span>
+                  <input
+                    value={searchParams.name}
+                    onChange={(e) => setSearchParams({ ...searchParams, name: e.target.value })}
+                    className="h-10 w-40 rounded-lg border border-input bg-background px-3 text-sm"
+                    placeholder="Vnesite naziv"
+                  />
+                </label>
+                <label className="flex shrink-0 items-center gap-4 text-sm text-black">
+                  <span className="whitespace-nowrap">Kategorija salona</span>
+                  <select
+                    value={searchParams.category}
+                    onChange={(e) => setSearchParams({ ...searchParams, category: e.target.value })}
+                    className="h-10 w-48 rounded-lg border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">Vse kategorije</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>{category.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex shrink-0 items-center gap-4 text-sm text-black">
+                  <span className="whitespace-nowrap">Regija salona:</span>
+                  <input
+                    value={searchParams.region}
+                    onChange={(e) => setSearchParams({ ...searchParams, region: e.target.value })}
+                    className="h-10 w-40 rounded-lg border border-input bg-background px-3 text-sm"
+                    placeholder="Vnesite regijo"
+                  />
+                </label>
 
-              <Button onClick={searchSalonUrl} className="bg-white px-12 py-4 text-sm text-black hover:bg-[#EBAFE2]/40">
-                {isSearching ? "Iščem…" : "Išči"}
-              </Button>
+                <Button onClick={searchSalonUrl} className="bg-white px-12 py-4 text-sm text-black hover:bg-[#EBAFE2]/40">
+                  {isSearching ? "Iščem…" : "Išči"}
+                </Button>
+              </div>
+
+              {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
+              {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
+              {allSalonsError && <p role="alert" className="text-sm text-destructive">{allSalonsError}</p>}
+
+              {!hasActiveSearch && allSalonsLoading && (
+                <p className="text-sm text-muted-foreground">Nalagam salone…</p>
+              )}
+
+              {!isSearching && hasSearched && !searchError && salonResults.length === 0 && (
+                <p className="text-sm text-muted-foreground">Ni najdenih salonov.</p>
+              )}
+
+              {displaySalons.length > 0 && (
+                <ul className="w-full space-y-2 p-4">
+                  {displaySalons.map((result) => {
+                    const imageUrl = resolveImageUrl(result.image_url)
+                    return (
+                      <li
+                        key={result.id}
+                        className="flex flex-row justify-start items-center gap-4 rounded-sm border bg-card p-4 hover:bg-[#EBAFE2]/40"
+                      >
+                        {imageUrl && (
+                          <img
+                            src={imageUrl}
+                            alt={result.name}
+                            className="h-28 w-44 rounded-lg object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none" }}
+                          />
+                        )}
+                        <div className="flex flex-col gap-2 text-left">
+                          <strong className="text-lg font-bold">{result.name}</strong>
+                          <span className="text-sm text-muted-foreground">{result.category_name}</span>
+                          <span className="text-sm text-muted-foreground">{result.region}</span>
+                        </div>
+                        <div className="ml-auto flex flex-col gap-2 items-end">
+                          <Button
+                            className="bg-[#EBAFE2] hover:bg-[#EBAFE2]/90 rounded-sm px-4 py-2 text-base h-10"
+                            render={<Link to={`/salon/${result.id}`} />}
+                          >
+                            Ogled profila
+                          </Button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
             </div>
-            {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
-            {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
-            {!isSearching && hasSearched && !searchError && salonResults.length === 0 && (
-              <p className="text-sm text-muted-foreground">Ni najdenih salonov.</p>
-            )}
-            {salonResults.length > 0 && (
-              <ul className="w-full space-y-2">
-                {salonResults.map((result) => (
-                  <li key={result.id} className="rounded-lg border bg-card p-4">
-                    <strong>{result.name}</strong>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-
-        )}
+          )}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   )

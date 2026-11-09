@@ -136,7 +136,7 @@ export const searchSalons = async function (req, res) {
     const result = await req.db.query(
       `SELECT
          s.id, s.name, s.description, s.category_id, c.name AS category_name,
-         s.region, s.address, s.city, s.postal_code, s.phone, s.email, s.instagram
+         s.region, s.address, s.city, s.postal_code, s.phone, s.email, s.instagram, s.image_url
        FROM salon s
        JOIN category c ON c.id = s.category_id
        WHERE ${conditions.join(' AND ')}

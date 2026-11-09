@@ -49,6 +49,9 @@ export interface SalonCategory {
 export interface SalonSummary {
   id: string
   name: string
+  image_url: string
+  category_name: string
+  region: string
 }
 
 export interface CreateSalonPayload {

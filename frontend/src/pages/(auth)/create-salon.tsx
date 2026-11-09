@@ -13,6 +13,7 @@ import {
 } from "../../lib/api"
 import { useEffect } from "react"
 
+
 export default function CreateSalon() {
   const { user, accessToken } = useAuth()
   const navigate = useNavigate()
@@ -32,7 +33,6 @@ export default function CreateSalon() {
       SetFile(e.target.files[0])
     }
   }
-
 
 
   useEffect(() => {

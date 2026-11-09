@@ -8,7 +8,7 @@ import {
 } from "../../components/ui/sidebar"
 import { useAuth } from "../../context/AuthContext"
 import { Button } from "../../components/ui/button"
-import { apiFetch, getMySalon, type SalonCategory, type SalonSummary } from "../../lib/api"
+import { apiFetch, getMySalon, type SalonCategory, type SalonRegion, type SalonSummary } from "../../lib/api"
 
 const API_BASE = import.meta.env.VITE_IMAGE_UPLOAD_URL || "http://localhost:3000"
 
@@ -57,6 +57,8 @@ export default function Dashboard() {
   const [searchError, setSearchError] = React.useState<string | null>(null)
   const [categories, setCategories] = React.useState<SalonCategory[]>([])
   const [categoryError, setCategoryError] = React.useState<string | null>(null)
+  const [regions, setRegions] = React.useState<SalonRegion[]>([])
+  const [regionError, setRegionError] = React.useState<string | null>(null)
 
   // all-salons state
   const [allSalons, setAllSalons] = React.useState<SalonSummary[]>(() => allSalonsCache ?? [])
@@ -82,6 +84,29 @@ export default function Dashboard() {
       })
       .finally(() => {
         if (!cancelled) setSalonChecked(true)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [user?.role, accessToken])
+
+  // customer: regions
+  React.useEffect(() => {
+    if (!accessToken || user?.role !== "customer") return
+
+    let cancelled = false
+    apiFetch<{ regions: SalonRegion[] }>("/salons/regions", {
+      method: "GET",
+      accessToken,
+    })
+      .then(({ regions }) => {
+        if (!cancelled) setRegions(regions)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setRegionError(error instanceof Error ? error.message : "Could not load regions")
+        }
       })
 
     return () => {
@@ -237,12 +262,16 @@ export default function Dashboard() {
                 </label>
                 <label className="flex shrink-0 items-center gap-4 text-sm text-black">
                   <span className="whitespace-nowrap">Regija salona:</span>
-                  <input
+                  <select
                     value={searchParams.region}
                     onChange={(e) => setSearchParams({ ...searchParams, region: e.target.value })}
-                    className="h-10 w-40 rounded-lg border border-input bg-background px-3 text-sm"
-                    placeholder="Vnesite regijo"
-                  />
+                    className="h-10 w-48 rounded-lg border border-input bg-background px-3 text-sm"
+                  >
+                    <option  value="">Vse regije</option>
+                    {regions.map((region) => (
+                      <option key={region.id} value={region.id}>{region.name}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <Button onClick={searchSalonUrl} className="bg-white px-12 py-4 text-sm text-black hover:bg-[#EBAFE2]/40">
@@ -251,6 +280,7 @@ export default function Dashboard() {
               </div>
 
               {categoryError && <p role="alert" className="text-sm text-destructive">{categoryError}</p>}
+              {regionError && <p role="alert" className="text-sm text-destructive">{regionError}</p>}
               {searchError && <p role="alert" className="text-sm text-destructive">{searchError}</p>}
               {allSalonsError && <p role="alert" className="text-sm text-destructive">{allSalonsError}</p>}
 
@@ -282,7 +312,6 @@ export default function Dashboard() {
                         <div className="flex flex-col gap-2 text-left">
                           <strong className="text-lg font-bold">{result.name}</strong>
                           <span className="text-sm text-muted-foreground">{result.category_name}</span>
-                          <span className="text-sm text-muted-foreground">{result.region}</span>
                         </div>
                         <div className="ml-auto flex flex-col gap-2 items-end">
                           <Button

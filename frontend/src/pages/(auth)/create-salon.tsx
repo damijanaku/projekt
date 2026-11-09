@@ -9,7 +9,9 @@ import {
   createSalon,
   getMySalon,
   getSalonCategories,
+  getSalonRegions,
   type SalonCategory,
+  type SalonRegion,
 } from "../../lib/api"
 import { useEffect } from "react"
 
@@ -18,6 +20,7 @@ export default function CreateSalon() {
   const { user, accessToken } = useAuth()
   const navigate = useNavigate()
   const [categories, setCategories] = React.useState<SalonCategory[]>([])
+  const [regions, setRegions] = React.useState<SalonRegion[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [isPending, setIsPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -51,8 +54,14 @@ export default function CreateSalon() {
           return
         }
 
-        const data = await getSalonCategories()
-        if (!cancelled) setCategories(data.categories)
+        const [categoryData, regionData] = await Promise.all([
+          getSalonCategories(),
+          getSalonRegions(),
+        ])
+        if (!cancelled) {
+          setCategories(categoryData.categories)
+          setRegions(regionData.regions)
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Could not load salon setup")
@@ -85,7 +94,7 @@ export default function CreateSalon() {
         name: String(form.get("name") ?? "").trim(),
         description: String(form.get("description") ?? "").trim(),
         category_id: categoryId,
-        region: String(form.get("region") ?? "").trim(),
+        region_id: Number(form.get("region_id")),
         address: String(form.get("address") ?? "").trim(),
         city: String(form.get("city") ?? "").trim(),
         postal_code: String(form.get("postal_code") ?? "").trim(),
@@ -159,8 +168,19 @@ export default function CreateSalon() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel htmlFor="region">Region</FieldLabel>
-              <Input id="region" name="region" required maxLength={100} />
+              <FieldLabel htmlFor="region_id">Region</FieldLabel>
+              <select
+                id="region_id"
+                name="region_id"
+                required
+                defaultValue=""
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="" disabled>Select a region</option>
+                {regions.map((region) => (
+                  <option key={region.id} value={region.id}>{region.name}</option>
+                ))}
+              </select>
             </Field>
             <Field>
               <FieldLabel htmlFor="city">City</FieldLabel>
@@ -230,7 +250,7 @@ export default function CreateSalon() {
             
           </div>
 
-          <Button type="submit" disabled={isPending || categories.length === 0} className="w-full col-span-2 bg-[#EBAFE2]">
+          <Button type="submit" disabled={isPending || categories.length === 0 || regions.length === 0} className="w-full col-span-2 bg-[#EBAFE2]">
             {isPending ? "Creating salon…" : "Create salon"}
           </Button>
           

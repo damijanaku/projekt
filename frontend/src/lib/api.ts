@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:3000/api/v1"
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api/v1"
 
 export async function apiFetch<T>(
   path: string,
@@ -46,19 +46,24 @@ export interface SalonCategory {
   name: string
 }
 
+export interface SalonRegion {
+  id: number
+  name: string
+}
+
 export interface SalonSummary {
   id: string
   name: string
   image_url: string
   category_name: string
-  region: string
+  region_id: number
 }
 
 export interface CreateSalonPayload {
   name: string
   description: string
   category_id: number
-  region: string
+  region_id: number
   address: string
   city: string
   postal_code: string
@@ -76,6 +81,10 @@ export function getMySalon(accessToken: string) {
 
 export function getSalonCategories() {
   return apiFetch<{ categories: SalonCategory[] }>("/salons/categories")
+}
+
+export function getSalonRegions() {
+  return apiFetch<{ regions: SalonRegion[] }>("/salons/regions")
 }
 
 export function createSalon(payload: CreateSalonPayload, accessToken: string) {

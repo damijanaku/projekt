@@ -22,7 +22,7 @@ app.use((req, _res, next) => {
   });
 
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.get('/health', async (req, res) => {
   const { rows } = await query('SELECT NOW() AS now');

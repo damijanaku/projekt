@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import express from 'express';
+import path from 'node:path';
 import userRoutes from './src/routes/user.routes.js';
+import salonRoutes from './src/routes/salon.routes.js'
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { connectDB, query, pool } from './src/config/db.js'
@@ -20,7 +22,7 @@ app.use((req, _res, next) => {
   });
 
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 app.get('/health', async (req, res) => {
   const { rows } = await query('SELECT NOW() AS now');
@@ -28,6 +30,9 @@ app.get('/health', async (req, res) => {
 });
 
 app.use('/api/v1/users', userRoutes)
+app.use('/api/v1/salons', salonRoutes)
+
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 async function start() {
   await connectDB();  

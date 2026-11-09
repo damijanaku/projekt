@@ -70,15 +70,15 @@ Glavne entitete in relacije:
 | Atribut | Tip | Omejitve | Opis |
 |---|---|---|---|
 | id | UUID / BIGINT | PK | Identifikator |
-| manager_id | UUID / BIGINT | FK -> SalonManager.id, UNIQUE, NOT NULL | Vodja salona |
+| manager_id | UUID | FK -> SalonManager.id, UNIQUE, NOT NULL | Vodja salona |
 | name | VARCHAR(150) | NOT NULL | Naziv salona |
 | description | TEXT | | Opis salona |
 | region | VARCHAR(100) | NOT NULL, INDEX | Regija (npr. Osrednja Slovenija) |
 | address | VARCHAR(255) | | Naslov |
 | city | VARCHAR(100) | | Mesto |
 | postal_code | VARCHAR(20) | | Poštna številka |
-| latitude | DECIMAL(9,6) | | Zemljepisna širina |
 | longitude | DECIMAL(9,6) | | Zemljepisna dolžina |
+| latitude | DECIMAL(9,6) | | Zemljepisna širina |
 | phone | VARCHAR(30) | | Kontakt |
 | email | VARCHAR(255) | | Kontakt |
 | instagram | VARCHAR(255) | | Instagram profil |
@@ -94,7 +94,7 @@ Glavne entitete in relacije:
 |---|---|---|---|
 | id | UUID / BIGINT | PK | Identifikator artista |
 | user_id | UUID / BIGINT | FK -> User.id, UNIQUE, NOT NULL | Uporabniški račun artista |
-| salon_id | UUID / BIGINT | FK -> Salon.id, NOT NULL | Salon, katerega ekipe je član |
+| salon_id | UUID | FK -> Salon.id, NOT NULL | Salon, katerega ekipe je član |
 | display_name | VARCHAR(150) | NOT NULL | Javno ime artista |
 | bio | TEXT | | Predstavitev in specializacija |
 | is_active | BOOLEAN | NOT NULL, DEFAULT true | Ali artist trenutno sprejema rezervacije |

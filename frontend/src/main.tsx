@@ -6,6 +6,7 @@ import Login from "./pages/login"
 import { AuthProvider } from "./context/AuthContext"
 import ProtectedRoute from "./auth/ProtectedRoute"
 import Dashboard from "./pages/(auth)/dashboard"
+import CreateSalon from "./pages/(auth)/create-salon"
 import InviteArtist from "./pages/(auth)/invite"
 import { AcceptInvitation } from "./pages/(auth)/acceptinvitation"
 
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root")!).render(
 
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/create-salon" element={<CreateSalon />} />
           <Route path="/dashboard/invite" element={<InviteArtist />} />
           <Route path="/accept-invitation" element={<AcceptInvitation />} />
         </Route>

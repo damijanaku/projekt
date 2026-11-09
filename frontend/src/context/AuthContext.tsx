@@ -34,6 +34,19 @@ interface AuthContextValue {
 
 const AuthContext = React.createContext<AuthContextValue | null>(null)
 
+function getTokenExpiry(token: string): number | null {
+  try {
+    const payload = token.split(".")[1]
+    if (!payload) return null
+    const unpadded = payload.replace(/-/g, "+").replace(/_/g, "/")
+    const base64 = unpadded.padEnd(unpadded.length + ((4 - unpadded.length % 4) % 4), "=")
+    const parsed = JSON.parse(atob(base64)) as { exp?: unknown }
+    return typeof parsed.exp === "number" ? parsed.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = React.useState<AuthUser | null>(null)
   const [accessToken, setAccessToken] = React.useState<string | null>(null)
@@ -61,6 +74,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true
     }
   }, [])
+
+  React.useEffect(() => {
+    const handleSessionExpired = () => {
+      setUser(null)
+      setAccessToken(null)
+    }
+
+    window.addEventListener("nailbabe:session-expired", handleSessionExpired)
+    return () => window.removeEventListener("nailbabe:session-expired", handleSessionExpired)
+  }, [])
+
+  React.useEffect(() => {
+    if (!accessToken) return
+
+    const expiresAt = getTokenExpiry(accessToken)
+    if (!expiresAt) return
+
+    // Refresh shortly before the 15-minute access token expires.
+    const refreshDelay = Math.max(expiresAt - Date.now() - 30_000, 0)
+    const timer = window.setTimeout(async () => {
+      try {
+        const data = await apiFetch<{ user: AuthUser; accessToken: string }>(
+          "/users/refresh",
+          { method: "GET" }
+        )
+        setUser(data.user)
+        setAccessToken(data.accessToken)
+      } catch {
+        setUser(null)
+        setAccessToken(null)
+      }
+    }, refreshDelay)
+
+    return () => window.clearTimeout(timer)
+  }, [accessToken])
 
   const register = React.useCallback(async (payload: RegisterPayload) => {
     await apiFetch("/users/register", {

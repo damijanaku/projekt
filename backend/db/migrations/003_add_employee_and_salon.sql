@@ -31,3 +31,4 @@ CREATE TABLE nail_artist (
     is_active BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+

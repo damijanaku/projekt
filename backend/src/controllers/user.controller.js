@@ -405,6 +405,185 @@ export const acceptInvitation = async function (req, res) {
   }
 };
 
+export const updateUser = async function (req, res) {
+  const targetId = req.params.id ?? req.user?.id;
+  const actorId = req.user?.id;
+
+  if (!actorId || !targetId) return res.status(401).json({ message: 'Unauthorized' });
+  if (req.params.id && !/^[0-9a-f-]{36}$/i.test(targetId)) {
+    return res.status(400).json({ message: 'Invalid user ID' });
+  }
+
+  const { email, first_name, last_name, password } = req.body;
+  const fields = [];
+  const values = [];
+  const profileUpdates = {};
+
+  if (email !== undefined) {
+    if (typeof email !== 'string' || !EMAIL_RE.test(email.trim())) {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
+    values.push(email.trim().toLowerCase());
+    fields.push(`email = $${values.length}`);
+  }
+
+  for (const [key, value] of [['first_name', first_name], ['last_name', last_name]]) {
+    if (value !== undefined) {
+      if (typeof value !== 'string' || !value.trim()) {
+        return res.status(400).json({ message: `${key} cannot be empty` });
+      }
+      values.push(value.trim());
+      fields.push(`${key} = $${values.length}`);
+    }
+  }
+
+  if (password !== undefined) {
+    if (typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    }
+    values.push(await bcrypt.hash(password, 10));
+    fields.push(`password_hash = $${values.length}`);
+  }
+
+  for (const key of ['display_name', 'bio', 'default_region', 'notes', 'specialty']) {
+    if (req.body[key] === undefined) continue;
+    if (typeof req.body[key] !== 'string') {
+      return res.status(400).json({ message: `${key} must be a string` });
+    }
+    const value = req.body[key].trim();
+    if (key === 'display_name' && !value) {
+      return res.status(400).json({ message: 'display_name cannot be empty' });
+    }
+    profileUpdates[key] = value || null;
+  }
+
+  if (req.body.experience_years !== undefined) {
+    const years = Number(req.body.experience_years);
+    if (!Number.isInteger(years) || years < 0) {
+      return res.status(400).json({ message: 'experience_years must be a non-negative integer' });
+    }
+    profileUpdates.experience_years = years;
+  }
+
+  if (!fields.length && !Object.keys(profileUpdates).length) {
+    return res.status(400).json({ message: 'Provide user or role-specific fields to update' });
+  }
+
+  try {
+    const [actor, target] = await Promise.all([
+      req.db.query(`SELECT role FROM "user" WHERE id = $1`, [actorId]),
+      req.db.query(`SELECT id, role FROM "user" WHERE id = $1`, [targetId]),
+    ]);
+
+    if (!actor.rows.length) return res.status(401).json({ message: 'Unauthorized' });
+    if (!target.rows.length) return res.status(404).json({ message: 'User not found' });
+    if (actorId !== targetId && actor.rows[0].role !== 'admin') {
+      return res.status(403).json({ message: 'You can only edit your own account' });
+    }
+
+    const targetRole = target.rows[0].role;
+    const profileColumns = {
+      customer: ['default_region', 'notes'],
+      salon_manager: ['display_name', 'bio'],
+      nail_artist: ['display_name', 'bio', 'experience_years', 'specialty'],
+      admin: [],
+    }[targetRole] ?? [];
+    const invalidProfileField = Object.keys(profileUpdates).find((key) => !profileColumns.includes(key));
+    if (invalidProfileField) {
+      return res.status(400).json({ message: `${invalidProfileField} is not valid for role ${targetRole}` });
+    }
+
+    const profileTable = {
+      customer: 'customer',
+      salon_manager: 'salon_manager',
+      nail_artist: 'nail_artist',
+    }[targetRole];
+
+    const result = await withTransaction(async (client) => {
+      let userResult = null;
+      if (fields.length) {
+        const updateValues = [...values, targetId];
+        userResult = await client.query(
+          `UPDATE "user" SET ${fields.join(', ')}
+           WHERE id = $${updateValues.length}
+           RETURNING id, email, first_name, last_name, role`,
+          updateValues
+        );
+      } else {
+        userResult = await client.query(
+          `SELECT id, email, first_name, last_name, role FROM "user" WHERE id = $1`,
+          [targetId]
+        );
+      }
+
+      if (Object.keys(profileUpdates).length) {
+        const profileValues = [];
+        const profileSet = Object.entries(profileUpdates).map(([key, value]) => {
+          profileValues.push(value);
+          return `${key} = $${profileValues.length}`;
+        });
+        profileValues.push(targetId);
+        await client.query(
+          `UPDATE ${profileTable} SET ${profileSet.join(', ')} WHERE user_id = $${profileValues.length}`,
+          profileValues
+        );
+      }
+      return userResult.rows[0];
+    });
+
+    return res.status(200).json({ message: 'User updated successfully', user: result });
+  } catch (error) {
+    if (error.code === '23505') return res.status(409).json({ message: 'Email already exists' });
+    console.error('update user error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const deleteUser = async function (req, res) {
+  const targetId = req.params.id ?? req.user?.id;
+  const actorId = req.user?.id;
+
+  if (!actorId || !targetId) return res.status(401).json({ message: 'Unauthorized' });
+  if (req.params.id && !/^[0-9a-f-]{36}$/i.test(targetId)) {
+    return res.status(400).json({ message: 'Invalid user ID' });
+  }
+
+  try {
+    const [actor, target] = await Promise.all([
+      req.db.query(`SELECT role FROM "user" WHERE id = $1`, [actorId]),
+      req.db.query(`SELECT id, role FROM "user" WHERE id = $1`, [targetId]),
+    ]);
+
+    if (!actor.rows.length) return res.status(401).json({ message: 'Unauthorized' });
+    if (!target.rows.length) return res.status(404).json({ message: 'User not found' });
+    if (actorId !== targetId && actor.rows[0].role !== 'admin') {
+      return res.status(403).json({ message: 'You can only delete your own account' });
+    }
+
+    await withTransaction(async (client) => {
+      if (target.rows[0].role === 'salon_manager') {
+        await client.query(
+          `DELETE FROM "user"
+           WHERE id IN (
+             SELECT na.user_id
+             FROM nail_artist na
+             JOIN salon s ON s.id = na.salon_id
+             JOIN salon_manager sm ON sm.id = s.manager_id
+             WHERE sm.user_id = $1
+           )`,
+          [targetId]
+        );
+      }
+      await client.query(`DELETE FROM "user" WHERE id = $1`, [targetId]);
+    });
+    if (actorId === targetId) res.clearCookie('refresh_token', { path: '/api/v1/users' });
+    return res.status(200).json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('delete user error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 
 
 

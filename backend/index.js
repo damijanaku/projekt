@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
+import path from 'node:path';
 import userRoutes from './src/routes/user.routes.js';
 import salonRoutes from './src/routes/salon.routes.js'
 import cookieParser from 'cookie-parser';
@@ -30,6 +31,8 @@ app.get('/health', async (req, res) => {
 
 app.use('/api/v1/users', userRoutes)
 app.use('/api/v1/salons', salonRoutes)
+
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 async function start() {
   await connectDB();  

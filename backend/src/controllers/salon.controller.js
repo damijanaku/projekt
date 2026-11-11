@@ -1,4 +1,5 @@
-import { uploadSalonImage } from '../middleware/upload.js'
+import { uploadSalonImage, uploadSalonGalleryImages } from '../middleware/upload.js'
+import fs from 'fs/promises'
 import { withTransaction } from '../config/db.js'
 
 export const getCategories = async function (req, res) {
@@ -248,6 +249,146 @@ export const requireSalonOwner = async function (req, res, next) {
   }
 };
 
+export const uploadSalonGallery = [
+  uploadSalonGalleryImages,
+  async function (req, res) {
+    const files = req.files ?? [];
+    if (!files.length) {
+      return res.status(400).json({ message: 'Upload at least one image using the "images" field' });
+    }
+
+    try {
+      const gallery = await withTransaction(async (client) => {
+        // locking the salon row so simultaneous uploads cannot exceed the five-image limit.
+        const salon = await client.query(
+          'SELECT id FROM salon WHERE id = $1 FOR UPDATE',
+          [req.authorizedSalon.id]
+        );
+        if (!salon.rows.length) throw Object.assign(new Error('Salon not found'), { status: 404 });
+
+        const count = await client.query(
+          'SELECT COUNT(*)::int AS count FROM salon_gallery_image WHERE salon_id = $1',
+          [req.authorizedSalon.id]
+        );
+        const existingCount = count.rows[0].count;
+        if (existingCount + files.length > 5) {
+          throw Object.assign(new Error(`This salon can have at most 5 gallery images; it currently has ${existingCount}`), { status: 400 });
+        }
+
+        const inserted = [];
+        for (const [index, file] of files.entries()) {
+          const imageUrl = `/uploads/salons/${file.filename}`;
+          const result = await client.query(
+            `INSERT INTO salon_gallery_image (salon_id, image_url, position)
+             VALUES ($1, $2, $3)
+             RETURNING id, salon_id, image_url, position, created_at`,
+            [req.authorizedSalon.id, imageUrl, existingCount + index]
+          );
+          inserted.push(result.rows[0]);
+        }
+        return inserted;
+      });
+
+      return res.status(201).json({ images: gallery });
+    } catch (error) {
+      await Promise.all(files.map((file) => fs.unlink(file.path).catch(() => {})));
+      if (error.status) return res.status(error.status).json({ message: error.message });
+      console.error('upload salon gallery error:', error);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
+  },
+];
+
+export const deleteSalonGalleryImage = async function (req, res) {
+  const { id: salonId, imageId } = req.params;
+  if (!/^[0-9a-f-]{36}$/i.test(salonId) || !/^[0-9a-f-]{36}$/i.test(imageId)) {
+    return res.status(400).json({ message: 'Invalid salon or image ID' });
+  }
+
+  try {
+    const deleted = await withTransaction(async (client) => {
+      const result = await client.query(
+        `DELETE FROM salon_gallery_image
+         WHERE id = $1 AND salon_id = $2
+         RETURNING image_url`,
+        [imageId, req.authorizedSalon.id]
+      );
+      if (!result.rows.length) return null;
+
+      await client.query(
+        `WITH ordered AS (
+           SELECT id, (ROW_NUMBER() OVER (ORDER BY position, created_at, id) - 1)::integer AS new_position
+           FROM salon_gallery_image WHERE salon_id = $1
+         )
+         UPDATE salon_gallery_image AS image
+         SET position = ordered.new_position
+         FROM ordered WHERE image.id = ordered.id`,
+        [req.authorizedSalon.id]
+      );
+      return result.rows[0].image_url;
+    });
+
+    if (!deleted) return res.status(404).json({ message: 'Gallery image not found' });
+    const filename = deleted.startsWith('/uploads/salons/') ? deleted.slice('/uploads/salons/'.length) : '';
+    if (filename && !filename.includes('/') && !filename.includes('\\')) {
+      await fs.unlink(`uploads/salons/${filename}`).catch(() => {});
+    }
+    return res.status(200).json({ message: 'Gallery image deleted' });
+  } catch (error) {
+    console.error('delete salon gallery image error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+export const fetchImagesFromMyGallery = async function (req,res) {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    return res.status(400).json({ message: 'Invalid user ID' });
+  }
+
+  try {
+    const results = await req.db.query(
+      `SELECT sgi.id, sgi.image_url, sgi.position, sgi.created_at
+        FROM salon_gallery_image sgi
+        JOIN salon s ON s.id = sgi.salon_id
+        WHERE s.manager_id = $1
+        ORDER BY sgi.position`,
+      [userId]
+    );
+
+    return res.status(200).json({ images: results.rows });
+  } catch (error) {
+    console.error('fetch images from gallery error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+export const fetchImagesFromGallery = async function (req, res) {
+  const salonId = req.params.id;
+
+  if (typeof salonId !== 'string' || !/^[0-9a-f-]{36}$/i.test(salonId)) {
+    return res.status(400).json({ message: 'Invalid salon ID' });
+  }
+
+  try {
+    const results = await req.db.query(
+      `SELECT sgi.id, sgi.image_url, sgi.position, sgi.created_at
+        FROM salon_gallery_image sgi
+        WHERE sgi.salon_id = $1
+        ORDER BY sgi.position`,
+      [salonId]
+    );
+
+    return res.status(200).json({ images: results.rows });
+  } catch (error) {
+    console.error('fetch images from gallery error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+
+
 export const updateSalon = [
   uploadSalonImage,
   async function (req, res) {
@@ -324,3 +465,35 @@ export const deleteSalon = async function (req, res) {
     return res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const getSalonById = async function (req, res) {
+  const salonId = req.params.id;
+
+  if (!salonId || !/^[0-9a-f-]{36}$/i.test(salonId)) {
+    return res.status(400).json({ message: 'Invalid salon ID' });
+  }
+
+  try {
+    const result = await req.db.query(
+      `SELECT
+         s.id, s.name, s.description, s.category_id, c.name AS category_name,
+         s.region_id, r.name AS region_name, s.address, s.city, s.postal_code, s.phone, s.email, s.instagram, s.image_url
+       FROM salon s
+       JOIN category c ON c.id = s.category_id
+       LEFT JOIN regions r ON r.id = s.region_id
+       LEFT JOIN salon_manager sm ON sm.id = s.manager_id
+       LEFT JOIN "user" u ON u.id = sm.user_id
+       WHERE s.id = $1 AND s.is_active = true`,
+      [salonId]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: 'Salon not found' });
+    }
+
+    return res.status(200).json({ salon: result.rows[0] });
+  } catch (error) {
+    console.error('getSalonById error:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+}

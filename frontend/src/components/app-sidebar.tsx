@@ -26,6 +26,10 @@ const NAV_ITEMS = [
     title: "Salon Setup",
     items: [{ title: "Invite nail artists", url: "/dashboard/invite" }],
   },
+  {
+    title: "Salon Management",
+    items: [{ title: "Update salon info", url: "/edit-salon-info" }],
+  }
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {

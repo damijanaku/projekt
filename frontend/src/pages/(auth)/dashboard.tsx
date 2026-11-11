@@ -9,6 +9,7 @@ import {
 import { useAuth } from "../../context/AuthContext"
 import { Button } from "../../components/ui/button"
 import { apiFetch, getMySalon, type SalonCategory, type SalonRegion, type SalonSummary } from "../../lib/api"
+import { useEffect } from "react"
 
 const API_BASE = import.meta.env.VITE_IMAGE_UPLOAD_URL || "http://localhost:3000"
 
@@ -92,7 +93,7 @@ export default function Dashboard() {
   }, [user?.role, accessToken])
 
   // customer: regions
-  React.useEffect(() => {
+  useEffect(() => {
     if (!accessToken || user?.role !== "customer") return
 
     let cancelled = false
@@ -115,7 +116,7 @@ export default function Dashboard() {
   }, [user?.role, accessToken])
 
   // customer: categories
-  React.useEffect(() => {
+  useEffect(() => {
     if (!accessToken || user?.role !== "customer") return
 
     let cancelled = false
@@ -144,7 +145,7 @@ export default function Dashboard() {
     searchParams.category.trim() !== "" ||
     searchParams.region.trim() !== ""
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (user?.role !== "customer" || !accessToken) return
     if (hasActiveSearch) return
     if (allSalonsCache) {
@@ -316,7 +317,7 @@ export default function Dashboard() {
                         <div className="ml-auto flex flex-col gap-2 items-end">
                           <Button
                             className="bg-[#EBAFE2] hover:bg-[#EBAFE2]/90 rounded-sm px-4 py-2 text-base h-10"
-                            render={<Link to={`/salon/${result.id}`} />}
+                            render={<Link to={`/preview-salon/${result.id}`} />}
                           >
                             Ogled profila
                           </Button>

@@ -1,5 +1,12 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api/v1"
 
+export function getUploadUrl(url?: string | null) {
+  if (!url) return null
+  if (/^https?:\/\//i.test(url) || url.startsWith("data:")) return url
+  const serverBase = API_BASE.replace(/\/api\/v1\/?$/, "")
+  return `${serverBase}${url.startsWith("/") ? "" : "/"}${url}`
+}
+
 export async function apiFetch<T>(
   path: string,
   init: RequestInit & { accessToken?: string | null } = {}
@@ -54,9 +61,26 @@ export interface SalonRegion {
 export interface SalonSummary {
   id: string
   name: string
+  description: string
+  address: string
+  city: string
+  postal_code: string
+  phone: string
+  email: string
+  instagram: string
   image_url: string
   category_name: string
-  region_id: number
+  category_id: number
+  region_id: number,
+  gallery?: SalonGalleryImage[]
+}
+
+export interface SalonGalleryImage {
+  id: string
+  salon_id: string
+  image_url: string
+  position: number
+  created_at: string
 }
 
 export interface CreateSalonPayload {
@@ -75,6 +99,12 @@ export interface CreateSalonPayload {
 
 export function getMySalon(accessToken: string) {
   return apiFetch<{ salon: SalonSummary | null }>("/salons/my-salon", {
+    accessToken,
+  })
+}
+
+export function getSalonById(accessToken: string, salonId: string) {
+  return apiFetch<{ salon: SalonSummary }>(`/salons/${salonId}`, {
     accessToken,
   })
 }
@@ -102,11 +132,51 @@ export function createSalon(payload: CreateSalonPayload, accessToken: string) {
   })
 }
 
+export function updateSalon(salonId: string, payload: CreateSalonPayload, accessToken: string) {
+  const { image, ...salonFields } = payload
+  const formData = new FormData()
+  Object.entries(salonFields).forEach(([key, value]) => {
+    formData.append(key, String(value))
+  })
+  if (image) formData.append("image", image)
+
+  return apiFetch<{ message: string; salon: SalonSummary }>(`/salons/${salonId}`, {
+    method: "PATCH",
+    body: formData,
+    accessToken,
+  })
+}
+
 export function inviteNailArtist(payload: InviteArtistPayload, accessToken: string) {
   return apiFetch<{ message: string; email: string; expires_at: string }>(
     "/users/invite-nail-artist",
     { method: "POST", body: JSON.stringify(payload), accessToken }
   )
+}
+
+export function getSalonGallery(salonId: string, accessToken: string) {
+  return apiFetch<{ images: SalonGalleryImage[] }>(`/salons/gallery/${salonId}`, {
+    method: "GET",
+    accessToken,
+  })
+}
+
+export function uploadSalonGallery(salonId: string, files: File[], accessToken: string) {
+  const formData = new FormData()
+  files.forEach((file) => formData.append("images", file))
+
+  return apiFetch<{ images: SalonGalleryImage[] }>(`/salons/${salonId}/gallery`, {
+    method: "POST",
+    body: formData,
+    accessToken,
+  })
+}
+
+export function deleteSalonGalleryImage(salonId: string, imageId: string, accessToken: string) {
+  return apiFetch<{ message: string }>(`/salons/${salonId}/gallery/${imageId}`, {
+    method: "DELETE",
+    accessToken,
+  })
 }
 
 export function acceptInvitation(payload: AcceptInvitationPayload) {

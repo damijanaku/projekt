@@ -9,6 +9,8 @@ import Dashboard from "./pages/(auth)/dashboard"
 import CreateSalon from "./pages/(auth)/create-salon"
 import InviteArtist from "./pages/(auth)/invite"
 import { AcceptInvitation } from "./pages/(auth)/acceptinvitation"
+import PreviewSalon from "./pages/(auth)/previewsalon"
+import EditSalon from "./pages/(auth)/editsalon"
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter>
@@ -23,6 +25,8 @@ createRoot(document.getElementById("root")!).render(
           <Route path="/dashboard/create-salon" element={<CreateSalon />} />
           <Route path="/dashboard/invite" element={<InviteArtist />} />
           <Route path="/accept-invitation" element={<AcceptInvitation />} />
+          <Route path="/preview-salon/:salonId" element={<PreviewSalon />} />
+          <Route path="/edit-salon-info" element={<EditSalon />} />
         </Route>
       </Routes>
     </AuthProvider>
